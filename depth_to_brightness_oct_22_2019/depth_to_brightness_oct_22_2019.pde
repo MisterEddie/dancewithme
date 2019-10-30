@@ -10,12 +10,12 @@ import java.io.FileInputStream;
  * Constants 
  */
 final int DURATION  = 20;
-final int FPS       = 60;
+final int FPS       = 16;
 final int TOT_FRAMES = DURATION * FPS;
 final int HEIGHT = 424;
 final int WIDTH = 512;
 final int NUM_PIXELS = WIDTH * HEIGHT; // num pixels per inner window
-final String FILENAME = "intersections.png";
+final String OUTPUT_FILENAME = "intersections.png";
 final String INPUTFILE = "./test.txt";
 
 FileInputStream input;
@@ -26,10 +26,10 @@ int intersectionHue = 0;
 int PREV_PERSON_HUE = 180;
 int CURR_PERSON_HUE = 315;
 int SATURATION = 100; // starts at 100 and then fades away
-color[] lastPixels = new int[NUM_PIXELS]; // also the pixels that end up in output image
-color[] fadedPixels = new int[NUM_PIXELS];
+color[] lastPixels = new color[NUM_PIXELS]; // also the pixels that end up in output image
+color[] fadedPixels = new color[NUM_PIXELS];
 
-// Queue to fade body away
+// Deque to fade body away
 Deque<color[]> framesToFade = new ArrayDeque<color[]>();
 
 // Images
@@ -37,13 +37,14 @@ PImage imgOne;
 PImage imgFade;
 PGraphics outputImage;
 
+int temptemp = 0;
 void setup() {
   // Change color mode
   colorMode(HSB, 360, 100, 100);
   size(1024, 848, P3D);
   
   imgOne = createImage(512, 424, PImage.RGB);
-  imgFade = createImage(512, 424, PImage.ARGB); // includes transparency
+  imgFade = createImage(512, 424, PImage.ARGB);
   
   kinect = new KinectPV2(this);
   kinect.enableBodyTrackImg(true);
@@ -70,12 +71,13 @@ void setup() {
   }
 
 
-  // initialize lastPixels
+  // initialize lastPixels and fadedPixels
   for (int i = 0; i < NUM_PIXELS; i += 1) {
     lastPixels[i] = color(0,0,0);
+    fadedPixels[i] = color(0,0,0,255);
   }
   // make sure this call to frameRate is at the bottom of setup
-  //frameRate(30);
+  frameRate(16);
 }
 
 void draw() {
@@ -86,18 +88,19 @@ void draw() {
   imgFade.loadPixels();
   
   // Initialize new blank intersection shape
-  color[] currIntersectionPixels = new int[NUM_PIXELS];
+  color[] currIntersectionPixels = new color[NUM_PIXELS];
   
   // Exit out if no more old footage
   if (frameCounter == TOT_FRAMES) {
     // save outputImgIntersectionPixels
-    createOutputImage(lastPixels);
+    createOutputImage(lastPixels, OUTPUT_FILENAME);
+    createOutputImage(fadedPixels, "test.png");
     exit();
     return;
   }
  
   //raw body data 0-6 users 255 nothing
-  int [] rawBodyData = kinect.getRawBodyTrack();
+  int[] rawBodyData = kinect.getRawBodyTrack();
   int[] rawDepthData = kinect.getRawDepthData();
 
   // Normalize brightness level.
@@ -155,32 +158,31 @@ void draw() {
 
   // Update faded pixels
   // Add latest intersection
-  if (intersectionDetected) {
+  framesToFade.addLast(currIntersectionPixels); // just test always adding frame
+ /* if (intersectionDetected) {
     framesToFade.addLast(currIntersectionPixels); // is the error something to do pass by reference not value?
   } else {
     framesToFade.addLast(new color[0]);
-  }
+  } */
   
   // Remove intersection shape if too many
-  if (framesToFade.size() >= 30) { //<>//
+  if (framesToFade.size() >= 200) {
     framesToFade.pollFirst();
   }
-  Iterator<color[]> iter = framesToFade.descendingIterator();
-  while (iter.hasNext()) {
-    color[] shape = iter.next(); //<>//
-    for (int i = 0; i < shape.length; i += 1) {
+  Iterator<color[]> frames = framesToFade.descendingIterator();
+  while (frames.hasNext()) {
+    color[] shape = frames.next(); //<>//
+    for (int i = 0; i < NUM_PIXELS; i += 1) {
       color currPixel = shape[i];
-      
-      if (alpha(currPixel) > 0) {
-        fadedPixels[i] = currPixel;
-        
+      fadedPixels[i] = currPixel;
+
+      /*if (alpha(currPixel) > 0) {   
         // update the shape's fade for the next iteration
         float hue = hue(currPixel);
-        float saturation = saturation(currPixel)-2;
-        float brightness = min(10, brightness(currPixel)-2);
-        float alpha = alpha(currPixel) - 0.01;
-        shape[i] = color(hue, saturation, brightness, alpha); //<>//
-      }
+        float saturation = saturation(currPixel)-1;
+        float brightness = max(10, brightness(currPixel)-2);
+        shape[i] = color(hue, saturation, brightness);
+      }*/
     }
   }
 
@@ -196,7 +198,7 @@ void draw() {
   frameCounter++;
 }
 
-void createOutputImage(color[] outputPixels) {
+void createOutputImage(color[] outputPixels, String filename) {
     outputImage = createGraphics(WIDTH, HEIGHT);
     outputImage.beginDraw();
     outputImage.loadPixels();
@@ -204,6 +206,6 @@ void createOutputImage(color[] outputPixels) {
       outputImage.pixels[i] = outputPixels[i];
     }
     outputImage.updatePixels();
-    outputImage.save(FILENAME);
+    outputImage.save(filename);
     
 }
