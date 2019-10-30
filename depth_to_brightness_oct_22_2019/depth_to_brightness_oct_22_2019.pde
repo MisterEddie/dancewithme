@@ -4,6 +4,7 @@ import java.lang.Long;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Iterator;
+import java.io.FileInputStream;
 
 /*
  * Constants 
@@ -15,10 +16,11 @@ final int HEIGHT = 424;
 final int WIDTH = 512;
 final int NUM_PIXELS = WIDTH * HEIGHT; // num pixels per inner window
 final String FILENAME = "intersections.png";
+final String INPUTFILE = "./test.txt";
 
-BufferedReader input;
+FileInputStream input;
 int frameCounter = 0;
-int[][] pixelLoaded = new int[NUM_PIXELS][TOT_FRAMES];
+byte[] pixelLoaded = new byte[NUM_PIXELS*TOT_FRAMES];
 
 int intersectionHue = 0;
 int PREV_PERSON_HUE = 180;
@@ -47,38 +49,27 @@ void setup() {
   kinect.enableBodyTrackImg(true);
   kinect.enableDepthImg(true);
   kinect.init();
-  
+
+  // This prints out the path where the file is saved.
+  // This code is just for debugging if running into filepath
+  // problems, doesn't do anything significant functionally for the program.
+  File directory = new File("./");
+  System.out.println(directory.getAbsolutePath());  
+
   // Load in data
-  input = createReader("../intersection_efficient_write/printwriter/test.txt");  
-  print("Please wait patiently, loading file contents into memory.\n");
-  int start = millis();
-  String line = null;
   try {
-    int linecount = 0;
-    while ((line = input.readLine()) != null) {
-      String[] pieces = split(line.trim()," ");  
-      assert(pieces.length == NUM_PIXELS/8);
-      int pixelcount = 0;
-      for (String entry : pieces) {
-        pixelLoaded[pixelcount][linecount] = byte((Long.parseLong(entry) >> 56) & 0xFF);
-        pixelLoaded[pixelcount+1][linecount] = byte((Long.parseLong(entry) >> 48) & 0xFF);
-        pixelLoaded[pixelcount+2][linecount] = byte((Long.parseLong(entry) >> 40) & 0xFF);
-        pixelLoaded[pixelcount+3][linecount] = byte((Long.parseLong(entry) >> 32) & 0xFF);
-        pixelLoaded[pixelcount+4][linecount] = byte((Long.parseLong(entry) >> 24) & 0xFF);
-        pixelLoaded[pixelcount+5][linecount] = byte((Long.parseLong(entry) >> 16) & 0xFF);
-        pixelLoaded[pixelcount+6][linecount] = byte((Long.parseLong(entry) >>  8) & 0xFF);
-        pixelLoaded[pixelcount+7][linecount] = byte(Long.parseLong(entry) & 0xFF);
-        pixelcount+=8;
-      }
-      linecount++;
-    }
+    input = new FileInputStream(INPUTFILE);
+    print("Please wait patiently, loading file contents into memory.\n");
+    int start = millis();
+    input.read(pixelLoaded, 0, NUM_PIXELS*TOT_FRAMES);
+    int end = millis();
+    print("Loading of file contents took " + (end-start)/1000 + " seconds.\n");
     input.close();
-  } catch(IOException e) {
-    e.printStackTrace(); 
+  } catch(IOException ex) {
+    ex.printStackTrace(); 
   }
-  int end = millis();
-  print("Loading of file contents took " + (end-start)/1000 + " seconds.\n");
-  
+
+
   // initialize lastPixels
   for (int i = 0; i < NUM_PIXELS; i += 1) {
     lastPixels[i] = color(0,0,0);
@@ -116,8 +107,8 @@ void draw() {
   float maxDepth = Float.MIN_VALUE;
   float minDepth = Float.MAX_VALUE;
   for (int i = 0; i < rawBodyData.length; i+=1){
-    if (rawBodyData[i] != 255 && pixelLoaded[i][frameCounter]!= 0) {
-      float diff = abs(rawDepthData[i] - pixelLoaded[i][frameCounter]);
+    if (rawBodyData[i] != 255 && pixelLoaded[frameCounter*NUM_PIXELS + i]!= 0) {
+      float diff = abs(rawDepthData[i] - pixelLoaded[frameCounter*NUM_PIXELS + i]);
       if (diff > maxDepth) {
         maxDepth = rawDepthData[i];
       }
@@ -134,7 +125,7 @@ void draw() {
   for (int i = 0; i < rawBodyData.length; i+=1){
     currIntersectionPixels[i] = color(0,0,0,0); // initial pixel to be transparent
     // Intersection
-    if(rawBodyData[i] != 255 && pixelLoaded[i][frameCounter] != 0){
+    if(rawBodyData[i] != 255 && pixelLoaded[frameCounter*NUM_PIXELS + i] != 0){
       intersectionDetected = true;
       float brightness = 100*(1-(rawDepthData[i]-minDepth)/adjustedScale);
       color newColor = color(intersectionHue % 360, SATURATION, brightness);
@@ -150,7 +141,7 @@ void draw() {
       imgFade.pixels[i] = newColor;
       currIntersectionPixels[i] = newColor;
     }
-    else if (pixelLoaded[i][frameCounter] != 0) {
+    else if (pixelLoaded[frameCounter*NUM_PIXELS + i] != 0) {
       color newColor = color(PREV_PERSON_HUE % 360, 70, 80);
       imgOne.pixels[i] = newColor;
       imgFade.pixels[i] = newColor;
