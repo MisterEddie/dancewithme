@@ -10,41 +10,74 @@ import java.io.FileInputStream;
  * Constants 
  */
 final int DURATION  = 20;
-final int FPS       = 60;
+final int FPS       = 16;
 final int TOT_FRAMES = DURATION * FPS;
 final int HEIGHT = 424;
 final int WIDTH = 512;
 final int NUM_PIXELS = WIDTH * HEIGHT; // num pixels per inner window
-final String FILENAME = "intersections.png";
+final int NUM_SECONDS_TO_PERSIST = 3;
+final String OUTPUT_FILENAME = "intersections.png";
 final String INPUTFILE = "./test.txt";
 
 FileInputStream input;
 int frameCounter = 0;
 byte[] pixelLoaded = new byte[NUM_PIXELS*TOT_FRAMES];
 
-int intersectionHue = 0;
-int PREV_PERSON_HUE = 180;
-int CURR_PERSON_HUE = 315;
-int SATURATION = 100; // starts at 100 and then fades away
-color[] lastPixels = new int[NUM_PIXELS]; // also the pixels that end up in output image
-color[] fadedPixels = new int[NUM_PIXELS];
+// Colors
+final int MAX_SATURATION = 100; // starts at 100 and then fades away
+final int PREV_PERSON_HUE = 180;
+final int CURR_PERSON_HUE = 315;
 
-// Queue to fade body away
-Deque<color[]> framesToFade = new ArrayDeque<color[]>();
+// define these in setup() after setting colorMode
+color PREV_PERSON_COLOR = color(PREV_PERSON_HUE, 60, 80);
+color CURR_PERSON_COLOR = color(CURR_PERSON_HUE, 60, 80);
+color PREV_PERSON_COLOR_FADE = color(PREV_PERSON_HUE, 40, 50);
+color CURR_PERSON_COLOR_FADE = color(CURR_PERSON_HUE, 40, 50);
+color BLACK = color(0,0,0);
 
-// Images
-PImage imgOne;
-PImage imgFade;
+/*******************************************
+* Helper arrays to store data about pixels.
+********************************************/
+// Pixels in output image for youAndPrev
+color[] youAndPrevIntersectionPixels = new color[NUM_PIXELS]; // pixels that end up in output image
+// Pixels to fade out shapes for youAndPrev
+color[] fadedPixels = new color[NUM_PIXELS];
+// Array of counters to determine when to start fading out intersection shapes
+// in youAndPrev. This allows the intersection shapes to stay on the screen for the
+// number of seconds set in NUM_SECONDS_TO_PERSIST before the shape begins to fade.
+int[] fadeIntersectionCounter = new int[NUM_PIXELS];
+
+// Images shown on screen
+PImage justYou;
+PImage youAndPrev;
+PImage youAndPrevOutputImage;
+
+// Output images
 PGraphics outputImage;
 
+// TEMP: replace with joint similarity color
+int intersectionHue = 0;
+
 void setup() {
+  // Must use numbers in calls to size(), not variables
+  size(1536, 848, P3D);
+  
+  // Create images
+  justYou = createImage(WIDTH, HEIGHT, PImage.RGB);
+  youAndPrev = createImage(WIDTH, HEIGHT, PImage.RGB);
+  youAndPrevOutputImage = createImage(WIDTH, HEIGHT, PImage.RGB);
+  
   // Change color mode
   colorMode(HSB, 360, 100, 100);
-  size(1024, 848, P3D);
   
-  imgOne = createImage(512, 424, PImage.RGB);
-  imgFade = createImage(512, 424, PImage.ARGB); // includes transparency
-  
+  // Set colors
+  PREV_PERSON_COLOR = color(PREV_PERSON_HUE, 60, 80);
+  CURR_PERSON_COLOR = color(CURR_PERSON_HUE, 60, 80);
+  PREV_PERSON_COLOR_FADE = color(PREV_PERSON_HUE, 40, 50);
+  CURR_PERSON_COLOR_FADE = color(CURR_PERSON_HUE, 40, 50);
+  BLACK = color(0,0,0);
+
+  // Initialize Kinect
   kinect = new KinectPV2(this);
   kinect.enableBodyTrackImg(true);
   kinect.enableDepthImg(true);
@@ -69,35 +102,33 @@ void setup() {
     ex.printStackTrace(); 
   }
 
-
-  // initialize lastPixels
+  // Initialize pixels in helper arrays
   for (int i = 0; i < NUM_PIXELS; i += 1) {
-    lastPixels[i] = color(0,0,0);
+    youAndPrevIntersectionPixels[i] = BLACK;
+    fadedPixels[i] = BLACK;
+    fadeIntersectionCounter[i] = 0;
   }
   // make sure this call to frameRate is at the bottom of setup
-  //frameRate(30);
+  frameRate(16);
 }
 
 void draw() {
-  background(0);   
-  
-  // Before we deal with pixels
-  imgOne.loadPixels(); 
-  imgFade.loadPixels();
-  
-  // Initialize new blank intersection shape
-  color[] currIntersectionPixels = new int[NUM_PIXELS];
+  // Load pixels for all images
+  justYou.loadPixels();
+  youAndPrevOutputImage.loadPixels(); 
+  youAndPrev.loadPixels();
   
   // Exit out if no more old footage
   if (frameCounter == TOT_FRAMES) {
     // save outputImgIntersectionPixels
-    createOutputImage(lastPixels);
+    createOutputImage(youAndPrevIntersectionPixels, OUTPUT_FILENAME);
+    createOutputImage(fadedPixels, "fade.png");
     exit();
     return;
   }
  
-  //raw body data 0-6 users 255 nothing
-  int [] rawBodyData = kinect.getRawBodyTrack();
+  // Raw body data: 0-6 users 255 nothing
+  int[] rawBodyData = kinect.getRawBodyTrack();
   int[] rawDepthData = kinect.getRawDepthData();
 
   // Normalize brightness level.
@@ -119,84 +150,98 @@ void draw() {
   } 
   
   float adjustedScale = maxDepth - minDepth;
-  boolean intersectionDetected = false;
+  
+  // TEMP: replace with joint similarity color
   intersectionHue = (intersectionHue + 1) % 360;
+  
   // Next, adjust brightness according to normalized scale.
   for (int i = 0; i < rawBodyData.length; i+=1){
-    currIntersectionPixels[i] = color(0,0,0,0); // initial pixel to be transparent
+     
+    // initialize pixel in justYou to black
+    justYou.pixels[i] = BLACK;
+    
     // Intersection
     if(rawBodyData[i] != 255 && pixelLoaded[frameCounter*NUM_PIXELS + i] != 0){
-      intersectionDetected = true;
       float brightness = 100*(1-(rawDepthData[i]-minDepth)/adjustedScale);
-      color newColor = color(intersectionHue % 360, SATURATION, brightness);
-      imgOne.pixels[i] = newColor;
-      imgFade.pixels[i] = newColor;
-      lastPixels[i] = newColor;
-      currIntersectionPixels[i] = newColor;
-    }
-    // Current body
-    else if (rawBodyData[i] != 255) {
-      color newColor = color(CURR_PERSON_HUE % 360, 70, 80);
-      imgOne.pixels[i] = newColor;
-      imgFade.pixels[i] = newColor;
-      currIntersectionPixels[i] = newColor;
-    }
-    else if (pixelLoaded[frameCounter*NUM_PIXELS + i] != 0) {
-      color newColor = color(PREV_PERSON_HUE % 360, 70, 80);
-      imgOne.pixels[i] = newColor;
-      imgFade.pixels[i] = newColor;
-      currIntersectionPixels[i] = newColor;
-    } else {
-    // load last scene's pixels
-    imgOne.pixels[i] = lastPixels[i];
-    imgFade.pixels[i] = fadedPixels[i];
-    }
-  }
-
-  // Update faded pixels
-  // Add latest intersection
-  if (intersectionDetected) {
-    framesToFade.addLast(currIntersectionPixels); // is the error something to do pass by reference not value?
-  } else {
-    framesToFade.addLast(new color[0]);
-  }
-  
-  // Remove intersection shape if too many
-  if (framesToFade.size() >= 30) { //<>//
-    framesToFade.pollFirst();
-  }
-  Iterator<color[]> iter = framesToFade.descendingIterator();
-  while (iter.hasNext()) {
-    color[] shape = iter.next(); //<>//
-    for (int i = 0; i < shape.length; i += 1) {
-      color currPixel = shape[i];
+      // Start intersection color off at max saturation
+      color newColor = color(intersectionHue % 360, MAX_SATURATION, brightness);
       
-      if (alpha(currPixel) > 0) {
-        fadedPixels[i] = currPixel;
-        
-        // update the shape's fade for the next iteration
-        float hue = hue(currPixel);
-        float saturation = saturation(currPixel)-2;
-        float brightness = min(10, brightness(currPixel)-2);
-        float alpha = alpha(currPixel) - 0.01;
-        shape[i] = color(hue, saturation, brightness, alpha); //<>//
+      // Color justYou
+      justYou.pixels[i] = CURR_PERSON_COLOR;
+      
+      // Color youAndPrev
+      youAndPrev.pixels[i] = newColor;
+      youAndPrevOutputImage.pixels[i] = newColor;
+      youAndPrevIntersectionPixels[i] = newColor;
+      
+      // reset fade intersection counter
+      fadeIntersectionCounter[i] = FPS*NUM_SECONDS_TO_PERSIST;
+      // make the intersection fade off less quickly
+      fadedPixels[i] = newColor;
+      
+
+    }
+    // Current body, no intersection
+    else if (rawBodyData[i] != 255) {      
+      // Color justYou
+      justYou.pixels[i] = CURR_PERSON_COLOR;
+      
+      // Color youAndPrev
+      youAndPrev.pixels[i] = CURR_PERSON_COLOR;
+      // make bodies fade off more quickly by starting at lower brightness
+      // but preserve the colors of intersections
+      if (fadeIntersectionCounter[i] == 0) {
+        fadedPixels[i] = CURR_PERSON_COLOR_FADE;
       }
     }
-  }
+    // Previous body, no intersection
+    else if (pixelLoaded[frameCounter*NUM_PIXELS + i] != 0) {
+      youAndPrev.pixels[i] = PREV_PERSON_COLOR;
+      if (fadeIntersectionCounter[i] == 0) {
+        fadedPixels[i] = PREV_PERSON_COLOR_FADE;
+      }
+    }
+    // No body detected at that pixel
+    else {
+      // For youAndPrev, fade away pixels from previous scene
+      color lastFadeColor = fadedPixels[i];
+      // Fade the pixel if it should be faded away.
+      if (fadeIntersectionCounter[i] == 0) {
+        youAndPrev.pixels[i] = lastFadeColor;
+        float newHue = hue(lastFadeColor);
+        float newSaturation = max(0, saturation(lastFadeColor)-1.0);
+        float newBrightness = max(0, brightness(lastFadeColor)-2.0);
+        color newColor = color(newHue, newSaturation, newBrightness);
+        youAndPrev.pixels[i] = newColor;
+        fadedPixels[i] = newColor;
+      }
+      // Otherwise, update the counter and display the
+      // the intersection shape.
+      else {
+        fadeIntersectionCounter[i] -= 1;
+        youAndPrev.pixels[i] = youAndPrevIntersectionPixels[i];
+      }
+    }
+  } //<>//
 
-  // When we are finished dealing with pixels
-  imgOne.updatePixels();
-  imgFade.updatePixels();
+  // Call updatePixels() for all images after they have been updated.
+  justYou.updatePixels();
+  youAndPrev.updatePixels();
+  youAndPrevOutputImage.updatePixels();
   
-  image(imgOne, 0, 0); // top left
-  image(imgFade, 512, 0); // top right
-  //image(imgOne, 0, 424); // bottom left
-  //image(imgOne, 512, 424); // bottom right
+  // Render images
+  image(justYou, 0, 0); // top left
+  // This is where the heatmap stuff should go
+  // image(youAndPrevOutputImage, 0, 424); // bottom left
+  image(youAndPrev, WIDTH, 0); // top middle
+  image(youAndPrevOutputImage, WIDTH, HEIGHT); // bottom middle
+  image(youAndPrev, WIDTH*2, 0); // top right
+  image(youAndPrevOutputImage, WIDTH*2, HEIGHT); // bottom right
   
-  frameCounter++;
+  frameCounter++; 
 }
 
-void createOutputImage(color[] outputPixels) {
+void createOutputImage(color[] outputPixels, String filename) {
     outputImage = createGraphics(WIDTH, HEIGHT);
     outputImage.beginDraw();
     outputImage.loadPixels();
@@ -204,6 +249,6 @@ void createOutputImage(color[] outputPixels) {
       outputImage.pixels[i] = outputPixels[i];
     }
     outputImage.updatePixels();
-    outputImage.save(FILENAME);
+    outputImage.save(filename);
     
 }
