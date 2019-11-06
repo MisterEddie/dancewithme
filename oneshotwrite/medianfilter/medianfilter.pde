@@ -104,7 +104,7 @@ void draw() {
     } 
   
 		imgOne.updatePixels();
-    imgFilt.filter(BLUR, 1);
+  //  imgFilt.filter(BLUR, 1);
 		imgFilt.updatePixels();
 
     image(imgOne, 0, 0); //top left
@@ -120,9 +120,12 @@ public class MedianFilter {
   private int mCols;
   private int mFrames;
   private int mPixels; 
+	private int mBox;
+	private int mDim;
 
   private byte[] mLoaded;
   private byte[] mFiltrd;  
+	private byte[] tempArr;
 
   /* 
   * Initializes MedianFilter which can implement median filtering on an array of frames, 
@@ -141,14 +144,17 @@ public class MedianFilter {
   * 
   */
   public MedianFilter(int numPixels, int totframes, byte[] arr, int rows, int cols, int fOrder) {
-    mLoaded = Arrays.copyOf(arr, numPixels*totframes);
-    mFiltrd = new byte[numPixels*totframes];
-
     mPixels = numPixels;
     mFrames = totframes;
     mRows   = rows;
     mCols   = cols;
     n       = fOrder;
+		mDim    = (2*n+1);
+		mBox    = mDim*mDim;
+
+    mLoaded = Arrays.copyOf(arr, numPixels*totframes);
+    mFiltrd = new byte[numPixels*totframes];
+		tempArr = new byte[mBox];
 
     filterAllFrames();
   }
@@ -167,17 +173,25 @@ public class MedianFilter {
    * cFi: the current frame's offset index in the array
    */
   void filterFrame(int cFi) {
-    int windowSize = 2*n + 1;
-
-    for (int curRow = 0; curRow < mRows; curRow++) {
+    for (int curRow = n; curRow < mRows-n; curRow++) {
       /* Apply median filter algorithm for non-edges */
       for (int i = cFi+curRow*mCols+n; i < cFi+(curRow+1)*mCols-n; i++) {
-        mFiltrd[i] = findMedian(Arrays.copyOfRange(mLoaded, i-n, i+n), windowSize);
+			  int iter = 0;
+				for (int j = -n; j <= n; j++) {
+					System.arraycopy(mLoaded, i+j*mCols-n, tempArr, iter*mDim, mDim);
+          iter++;
+				}
+        mFiltrd[i] = findMedian(tempArr, mBox);
+        
       }
-      /* For edges/borders of image, just fill with the exact value of the old image */
       for (int i = 0; i < n; i++) {
+      		/* For left/right edges of image, just fill with the exact value of the old image */
           mFiltrd[cFi+curRow*mCols+i] = mLoaded[cFi+curRow*mCols+i];
           mFiltrd[cFi+(curRow+1)*mCols-i-1] = mLoaded[cFi+(curRow+1)*mCols-i-1];
+
+					/* For top/bottom edges of image, just fill with exact same value of old image */
+					System.arraycopy(mLoaded, i*mRows, mFiltrd, i*mRows, mRows);
+					System.arraycopy(mLoaded, mPixels-(i+1)*mRows-1, mFiltrd, mPixels-(i+1)*mRows-1, mRows);
       }
     }
   }
