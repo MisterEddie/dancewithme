@@ -5,6 +5,8 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Iterator;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.util.Arrays; 
 
 /*
  * Constants 
@@ -16,12 +18,22 @@ final int HEIGHT = 424;
 final int WIDTH = 512;
 final int NUM_PIXELS = WIDTH * HEIGHT; // num pixels per inner window
 final int NUM_SECONDS_TO_PERSIST = 3;
+final int MFILTERORDER = 2;
 final String OUTPUT_FILENAME = "intersections.png";
-final String INPUTFILE = "./test.txt";
+final String IOFILE = "./test.txt";
+
 
 FileInputStream input;
+FileOutputStream output;
+
+// Associated with median filtering 
+MedianFilter curr;
+int[] pixelTemp = new int[NUM_PIXELS];
+
+
 int frameCounter = 0;
 byte[] pixelLoaded = new byte[NUM_PIXELS*TOT_FRAMES];
+byte[] pixelToSave = new byte[NUM_PIXELS*TOT_FRAMES];
 
 // Colors
 final int MAX_SATURATION = 100; // starts at 100 and then fades away
@@ -83,6 +95,9 @@ void setup() {
   kinect.enableDepthImg(true);
   kinect.init();
 
+  // Create MedianFilter object
+  curr = new MedianFilter(NUM_PIXELS, TOT_FRAMES, HEIGHT, WIDTH, MFILTERORDER);
+
   // This prints out the path where the file is saved.
   // This code is just for debugging if running into filepath
   // problems, doesn't do anything significant functionally for the program.
@@ -91,7 +106,7 @@ void setup() {
 
   // Load in data
   try {
-    input = new FileInputStream(INPUTFILE);
+    input = new FileInputStream(IOFILE);
     print("Please wait patiently, loading file contents into memory.\n");
     int start = millis();
     input.read(pixelLoaded, 0, NUM_PIXELS*TOT_FRAMES);
@@ -123,6 +138,16 @@ void draw() {
     // save outputImgIntersectionPixels
     createOutputImage(youAndPrevIntersectionPixels, OUTPUT_FILENAME);
     createOutputImage(fadedPixels, "fade.png");
+    
+    try {
+      print("Writing file to memory\n");
+      output = new FileOutputStream(IOFILE);
+      output.write(pixelToSave, 0, NUM_PIXELS*TOT_FRAMES);
+      output.close();
+      print("Done writing file to memory\n");
+    } catch (IOException ex) {
+     ex.printStackTrace(); 
+    }
     exit();
     return;
   }
@@ -130,6 +155,11 @@ void draw() {
   // Raw body data: 0-6 users 255 nothing
   int[] rawBodyData = kinect.getRawBodyTrack();
   int[] rawDepthData = kinect.getRawDepthData();
+  
+  // Median filter the rawBodyData array.
+  int off = 0;
+  curr.filterFrame(rawBodyData, pixelTemp, off);
+  rawBodyData = pixelTemp;
 
   // Normalize brightness level.
   // Amplify actual depth since we're only interested in
@@ -138,6 +168,17 @@ void draw() {
   float maxDepth = Float.MIN_VALUE;
   float minDepth = Float.MAX_VALUE;
   for (int i = 0; i < rawBodyData.length; i+=1){
+    
+    //////////////////////////////////////////////////
+    // Save current user's depth for the next run
+    // Sorry couldn't find a better place to put the code 
+    // at the moment so shoving it randomly here.
+    if(rawBodyData[i] != 255) {
+      int depth = rawDepthData[i]*256/4000;
+      pixelToSave[frameCounter*NUM_PIXELS + i] = byte(depth);
+    }
+    //////////////////////////////////////////////////
+    
     if (rawBodyData[i] != 255 && pixelLoaded[frameCounter*NUM_PIXELS + i]!= 0) {
       float diff = abs(rawDepthData[i] - pixelLoaded[frameCounter*NUM_PIXELS + i]);
       if (diff > maxDepth) {
