@@ -49,7 +49,7 @@ public class MedianFilter {
    * Takes a whole array of past frames and then returns a new array which is the
    * filtered version of all depth frames. Not useful for real-time filtering
    */
-  byte[] filterAllPastFrames(byte[] arr) {
+  public byte[] filterAllPastFrames(byte[] arr) {
     mFiltrd = new byte[mPixels*mFrames];
     byte[] mLoaded = Arrays.copyOf(arr, mPixels*mFrames);
     assert(mFiltrd.length == mLoaded.length);
@@ -64,7 +64,7 @@ public class MedianFilter {
    * filtering.
    * cFi: the current frame's offset index in the array
    */
-  void filterPastFrame(byte[] mLoaded, byte[] mFiltrd, int cFi) {
+  private void filterPastFrame(byte[] mLoaded, byte[] mFiltrd, int cFi) {
     for (int curRow = n; curRow < mRows-n; curRow++) {
       /* Apply median filter algorithm for non-edges */
       for (int i = cFi+curRow*mCols+n; i < cFi+(curRow+1)*mCols-n; i++) {
@@ -93,7 +93,7 @@ public class MedianFilter {
    * Filters the exact frame at the index cFi
    * cFi: the current frame's offset index in the array
    */
-  void filterFrame(int[] mLoaded, int[] mFiltrd, int cFi) {
+  public void filterFrame(int[] mLoaded, int[] mFiltrd, int cFi) {
     for (int curRow = n; curRow < mRows-n; curRow++) {
       /* Apply median filter algorithm for non-edges */
       for (int i = cFi+curRow*mCols+n; i < cFi+(curRow+1)*mCols-n; i++) {
@@ -122,19 +122,19 @@ public class MedianFilter {
    * arr  : the 1D array to find the median of
    * size : the number of the array
    */
-  byte findMedian(byte[] arr, int size) {
+  private byte findMedian(byte[] arr, int size) {
     assert(size % 2 != 0); // Must be an odd number
     Arrays.sort(arr);
     return arr[size/2];
   }
   
-  int findMedian(int[] arr, int size) {
+  private int findMedian(int[] arr, int size) {
     assert(size % 2 != 0); // Must be an odd number
     Arrays.sort(arr);
     return arr[size/2];
   }
 
-  byte[] getFiltdArray() {
+  public byte[] getFiltdArray() {
     return mFiltrd;
   }
 }

@@ -194,12 +194,12 @@ void draw() {
   int[] rawDepthData = kinect.getRawDepthData();
   
   // Median filter the rawBodyData array.
-  int off = 0;
-  curr.filterFrame(rawBodyData, pixelTemp, off);
+  //int off = 0;
+  //curr.filterFrame(rawBodyData, pixelTemp, off);
   //if (frameCounter == 180) {
   // print("hello");  //<>//
   //}
-  rawBodyData = pixelTemp;
+  //rawBodyData = pixelTemp;
   
   // Extract joint data
   jntchks.runJointChecks(frameCounter);
