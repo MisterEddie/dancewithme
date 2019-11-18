@@ -9,7 +9,7 @@ import java.io.FileOutputStream;
 import java.util.Arrays; 
 
 /*
- * Constants 
+ * General Constants 
  */
 final int DURATION  = 20;
 final int FPS       = 16;
@@ -18,22 +18,30 @@ final int HEIGHT = 424;
 final int WIDTH = 512;
 final int NUM_PIXELS = WIDTH * HEIGHT; // num pixels per inner window
 final int NUM_SECONDS_TO_PERSIST = 3;
-final int MFILTERORDER = 2;
 final String OUTPUT_FILENAME = "intersections.png";
-final String IOFILE = "./test.txt";
 
+// Dynamic frameCounter variable
+int frameCounter = 0;
 
+// Associated with depth 
 FileInputStream input;
 FileOutputStream output;
+final String IOFILE_DEPTH = "./testDepth.txt";
+byte[] pixelLoaded = new byte[NUM_PIXELS*TOT_FRAMES];
+byte[] pixelToSave = new byte[NUM_PIXELS*TOT_FRAMES];
+
+// Associated with joints
+FileInputStream inputJoints;
+FileOutputStream outputJoints;
+final String IOFILE_JOINTS = "./testJoint.txt";
+final int NUM_JOINT_CHECKS = 16;
+byte[] jointsLoaded = new byte[NUM_JOINT_CHECKS*TOT_FRAMES]; 
+JointChecks jntchks;
 
 // Associated with median filtering 
 MedianFilter curr;
 int[] pixelTemp = new int[NUM_PIXELS];
-
-
-int frameCounter = 0;
-byte[] pixelLoaded = new byte[NUM_PIXELS*TOT_FRAMES];
-byte[] pixelToSave = new byte[NUM_PIXELS*TOT_FRAMES];
+final int MFILTERORDER = 2;
 
 // Colors
 final int MAX_SATURATION = 100; // starts at 100 and then fades away
@@ -93,26 +101,41 @@ void setup() {
   kinect = new KinectPV2(this);
   kinect.enableBodyTrackImg(true);
   kinect.enableDepthImg(true);
+  kinect.enableSkeletonColorMap(true); 
   kinect.init();
 
   // Create MedianFilter object
   curr = new MedianFilter(NUM_PIXELS, TOT_FRAMES, HEIGHT, WIDTH, MFILTERORDER);
 
-  // This prints out the path where the file is saved.
-  // This code is just for debugging if running into filepath
-  // problems, doesn't do anything significant functionally for the program.
+	// Create JointChecks object
+	jntchks = new JointChecks(TOT_FRAMES, kinect, NUM_JOINT_CHECKS);
+
+  // Prints filepath save directory. For debugging purposes.
   File directory = new File("./");
   System.out.println(directory.getAbsolutePath());  
 
-  // Load in data
+  // Load in depth data
   try {
-    input = new FileInputStream(IOFILE);
+    input = new FileInputStream(IOFILE_DEPTH);
     print("Please wait patiently, loading file contents into memory.\n");
     int start = millis();
     input.read(pixelLoaded, 0, NUM_PIXELS*TOT_FRAMES);
     int end = millis();
     print("Loading of file contents took " + (end-start)/1000 + " seconds.\n");
     input.close();
+  } catch(IOException ex) {
+    ex.printStackTrace(); 
+  }
+  
+  // Load in joints data
+  try {
+    inputJoints = new FileInputStream(IOFILE_JOINTS);
+    print("Please wait patiently, loading file contents into memory.\n");
+    int start = millis();
+    inputJoints.read(jointsLoaded, 0, NUM_JOINT_CHECKS*TOT_FRAMES);
+    int end = millis();
+    print("Loading of joints file contents took " + (end-start)/1000 + " seconds.\n");
+    inputJoints.close();
   } catch(IOException ex) {
     ex.printStackTrace(); 
   }
@@ -139,15 +162,29 @@ void draw() {
     createOutputImage(youAndPrevIntersectionPixels, OUTPUT_FILENAME);
     createOutputImage(fadedPixels, "fade.png");
     
+    // Save depth data
     try {
       print("Writing file to memory\n");
-      output = new FileOutputStream(IOFILE);
+      output = new FileOutputStream(IOFILE_DEPTH);
       output.write(pixelToSave, 0, NUM_PIXELS*TOT_FRAMES);
       output.close();
       print("Done writing file to memory\n");
     } catch (IOException ex) {
      ex.printStackTrace(); 
     }
+    
+    // Save joint data
+    try {
+      outputJoints = new FileOutputStream(IOFILE_JOINTS);
+      int start = millis();        
+      outputJoints.write(jntchks.getJointChecks(), 0, TOT_FRAMES*NUM_JOINT_CHECKS);
+      int end = millis();
+      print("Total time to save joints is " + (end-start)/1000 + " seconds.\n");
+      outputJoints.close();
+      print("Stream joint closed. \n"); 
+    } catch (IOException ex) {}
+    print("Ready to exit and close. \n"); 
+    
     exit();
     return;
   }
@@ -159,7 +196,17 @@ void draw() {
   // Median filter the rawBodyData array.
   int off = 0;
   curr.filterFrame(rawBodyData, pixelTemp, off);
+  //if (frameCounter == 180) {
+  // print("hello");  //<>//
+  //}
   rawBodyData = pixelTemp;
+  
+  // Extract joint data
+  jntchks.runJointChecks(frameCounter);
+  jntchks.storeJointChecks(frameCounter);
+  jntchks.storeFrameJointChecks();
+  byte[] compareJoints = jntchks.compareJoints(jointsLoaded, frameCounter); // Code does nothing with it right now.
+  
 
   // Normalize brightness level.
   // Amplify actual depth since we're only interested in
@@ -192,8 +239,22 @@ void draw() {
   
   float adjustedScale = maxDepth - minDepth;
   
+  // if right wrist is in same position (?)
+  // make it some pink color 
+  //if(compareJoints[2]==1){
+  //  print("making blue...\n"); 
+  //  if (frameCounter == 100) {
+  //    print("hello");
+  //  }
+  //  intersectionHue = 180;  
+  //}
+  //else{
+  //  print("making red \n"); 
+  //  intersectionHue = 360; 
+  //}
+  
   // TEMP: replace with joint similarity color
-  intersectionHue = (intersectionHue + 1) % 360;
+  //intersectionHue = (intersectionHue + 1) % 360;
   
   // Next, adjust brightness according to normalized scale.
   for (int i = 0; i < rawBodyData.length; i+=1){
@@ -263,7 +324,7 @@ void draw() {
         youAndPrev.pixels[i] = youAndPrevIntersectionPixels[i];
       }
     }
-  } //<>//
+  }
 
   // Call updatePixels() for all images after they have been updated.
   justYou.updatePixels();
