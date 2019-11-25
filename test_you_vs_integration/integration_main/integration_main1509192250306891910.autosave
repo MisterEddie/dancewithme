@@ -1,0 +1,35 @@
+import KinectPV2.*;
+import java.lang.Long;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.Iterator;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.util.Arrays; 
+
+boolean YP_finish = false;
+boolean YY_finish = false;
+
+
+void setup() {
+  size(1536, 848, P3D);
+  YP_setup();
+  YY_setup();
+ 
+}
+
+void draw() {
+  if (YP_finish == false) {
+   YP_draw(); 
+  } else {
+   YY_draw(); 
+  }
+  
+  // End program.
+  if (YY_finish == true) {
+    exit();
+    return;
+   
+  }
+ 
+}
