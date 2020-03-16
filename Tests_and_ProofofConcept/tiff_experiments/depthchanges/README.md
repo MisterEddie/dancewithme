@@ -1,0 +1,1 @@
+maps depth onto a spectrum of colour (blue-green)
