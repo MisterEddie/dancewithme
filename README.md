@@ -12,12 +12,11 @@ Afterimage creates art using your data and other people's data. As you move arou
 By drawing attention to the generation, collection, and usage of data, Afterimage encourages reflection on your relationship with your data. How does it feel to use others' data and to know yours will be used in the same way? In what contexts is collecting data about you acceptable? Giving and using data, in this installation, allows you to create art and connect with past people's data. So, can sharing your data be a good thing?
 
 
-2.5 minute experience
-Kinect, Processing, SQLite
+2.5 minute experience <br/>
+Kinect, Processing, SQLite  <br/>
 Supports up to six people; optimized for one.
 
-
-*Collection and Usage of Data
+### Collection and Usage of Data
 You make art with data from the 25 most recent Afterimage users. Your movement data replaces the least recent user's data. This data is not tied to you in any way, and is deleted after 25 more people use Afterimage.
 
 
