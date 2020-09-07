@@ -2,7 +2,7 @@
 ![Picture1](https://github.com/MisterEddie/dancewithme/blob/master/Tests_and_ProofofConcept/backgroundpic1.jpg)
 ## How do you feel about the data you leave behind?
 ### DEMO VIDEOS:
-* [See more here!](* [Brief clip of installation in use (0:57-1:14)](https://www.youtube.com/watch?v=QrNnfHPdiMI&feature=youtu.be&t=57))
+* [See more here!](https://bit.ly/3jQ9US8)
 * [Brief clip of installation in use (0:57-1:14)](https://www.youtube.com/watch?v=QrNnfHPdiMI&feature=youtu.be&t=57)
 * [Whole Afterimage experience](https://drive.google.com/file/d/1kTNCnpytaNNAxGFiNDr8jrrjFcYTzU03/edit) A brief description is shown before the start of each visualization.
 
